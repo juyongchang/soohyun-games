@@ -1,0 +1,229 @@
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>블록 피하기</title>
+  <style>
+    body {
+      margin: 0;
+      background: #222;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 20px 0 10px;
+    }
+
+    canvas {
+      background: #111;
+      border: 3px solid white;
+      display: block;
+      margin: 0 auto;
+    }
+
+    p {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>블록 피하기</h1>
+
+  <canvas id="gameCanvas" width="500" height="600"></canvas>
+
+  <p>← → 방향키로 이동하세요.</p>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const player = {
+      x: 220,
+      y: 540,
+      width: 60,
+      height: 30,
+      speed: 7
+    };
+
+    let obstacles = [];
+    let leftPressed = false;
+    let rightPressed = false;
+    let score = 0;
+    let gameOver = false;
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "ArrowLeft") {
+        leftPressed = true;
+      }
+
+      if (event.key === "ArrowRight") {
+        rightPressed = true;
+      }
+
+      if (event.key === " " && gameOver) {
+        restartGame();
+      }
+    });
+
+    document.addEventListener("keyup", function(event) {
+      if (event.key === "ArrowLeft") {
+        leftPressed = false;
+      }
+
+      if (event.key === "ArrowRight") {
+        rightPressed = false;
+      }
+    });
+
+    function createObstacle() {
+      const width = 40 + Math.random() * 50;
+
+      obstacles.push({
+        x: Math.random() * (canvas.width - width),
+        y: -30,
+        width: width,
+        height: 30,
+        speed: 3 + Math.random() * 3
+      });
+    }
+
+    function movePlayer() {
+      if (leftPressed) {
+        player.x -= player.speed;
+      }
+
+      if (rightPressed) {
+        player.x += player.speed;
+      }
+
+      if (player.x < 0) {
+        player.x = 0;
+      }
+
+      if (player.x + player.width > canvas.width) {
+        player.x = canvas.width - player.width;
+      }
+    }
+
+    function moveObstacles() {
+      for (let obstacle of obstacles) {
+        obstacle.y += obstacle.speed;
+      }
+
+      obstacles = obstacles.filter(function(obstacle) {
+        return obstacle.y < canvas.height;
+      });
+    }
+
+    function checkCollision() {
+      for (let obstacle of obstacles) {
+        const hit =
+          player.x < obstacle.x + obstacle.width &&
+          player.x + player.width > obstacle.x &&
+          player.y < obstacle.y + obstacle.height &&
+          player.y + player.height > obstacle.y;
+
+        if (hit) {
+          gameOver = true;
+        }
+      }
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = "deepskyblue";
+      ctx.fillRect(
+        player.x,
+        player.y,
+        player.width,
+        player.height
+      );
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = "tomato";
+
+      for (let obstacle of obstacles) {
+        ctx.fillRect(
+          obstacle.x,
+          obstacle.y,
+          obstacle.width,
+          obstacle.height
+        );
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "white";
+      ctx.font = "24px sans-serif";
+      ctx.fillText("Score: " + Math.floor(score), 20, 35);
+    }
+
+    function drawGameOver() {
+      ctx.fillStyle = "white";
+      ctx.font = "40px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "GAME OVER",
+        canvas.width / 2,
+        canvas.height / 2
+      );
+
+      ctx.font = "20px sans-serif";
+      ctx.fillText(
+        "스페이스바를 눌러 다시 시작",
+        canvas.width / 2,
+        canvas.height / 2 + 50
+      );
+
+      ctx.textAlign = "left";
+    }
+
+    function restartGame() {
+      player.x = 220;
+      obstacles = [];
+      score = 0;
+      gameOver = false;
+    }
+
+    let obstacleTimer = 0;
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!gameOver) {
+        movePlayer();
+
+        obstacleTimer++;
+
+        if (obstacleTimer > 40) {
+          createObstacle();
+          obstacleTimer = 0;
+        }
+
+        moveObstacles();
+        checkCollision();
+
+        score += 0.05;
+      }
+
+      drawPlayer();
+      drawObstacles();
+      drawScore();
+
+      if (gameOver) {
+        drawGameOver();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+
+</body>
+</html>
+```
