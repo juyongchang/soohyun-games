@@ -1,2 +1,5 @@
-# soohyun-games
-Simple games made with HTML and JavaScript
+# 수현이의 게임 모음
+
+HTML과 JavaScript로 만든 간단한 브라우저 게임 모음입니다.
+
+게임을 직접 만들고 조금씩 발전시키면서 자연스럽게 프로그래밍을 배우는 것을 목표로 합니다.

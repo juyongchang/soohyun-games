@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>가장 완벽한 게임</title>
+  <style>
+    /* 브라우저 기본 여백을 없애고 페이지 전체의 색상과 글꼴을 정합니다. */
+    body {
+      margin: 0;
+      background: #1b1b1b;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    /* 게임 제목과 안내 문구 사이의 간격을 줄입니다. */
+    h1 {
+      margin: 12px 0 5px;
+    }
+
+    /* 실제 게임을 그리는 Canvas의 배경과 흰색 테두리입니다. */
+    canvas {
+      background: #2f5f3f;
+      border: 3px solid white;
+      display: block;
+      margin: 0 auto;
+      width: 100%;
+      height: auto;
+      box-sizing: border-box;
+    }
+
+    /* 시작 버튼을 캔버스 중앙에 올려놓기 위한 영역입니다. */
+    .game-container {
+      position: relative;
+      width: calc(100% - 12px);
+      max-width: 906px;
+      margin: 0 auto;
+    }
+
+    /* 게임을 시작하기 전 Canvas 중앙에 표시되는 버튼입니다. */
+    #startButton {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 16px 34px;
+      border: 3px solid white;
+      border-radius: 12px;
+      background: #f2a03d;
+      color: #1b1b1b;
+      font-size: 26px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 6px 0 #9b5b1f;
+      z-index: 3;
+    }
+
+    /* 마우스를 버튼 위에 올렸을 때 조금 밝게 표시합니다. */
+    #startButton:hover {
+      background: #ffc266;
+    }
+
+    /* 버튼을 누르는 동안 아래로 살짝 움직여 눌리는 느낌을 줍니다. */
+    #startButton:active {
+      transform: translate(-50%, calc(-50% + 4px));
+      box-shadow: 0 2px 0 #9b5b1f;
+    }
+
+    /* 키보드 조작 안내 문구의 여백입니다. */
+    p {
+      margin: 7px;
+    }
+
+    /* 모바일 조작기는 평소에는 숨기고 터치 기기에서 게임 중에만 표시합니다. */
+    .mobile-control {
+      display: none;
+      position: absolute;
+      z-index: 2;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* 왼쪽 아래의 큰 원은 손가락을 움직일 수 있는 조이스틱 영역입니다. */
+    #joystick {
+      left: 20px;
+      bottom: 20px;
+      width: 112px;
+      height: 112px;
+      border: 3px solid rgba(255, 255, 255, 0.65);
+      border-radius: 50%;
+      background: rgba(20, 20, 20, 0.38);
+      box-sizing: border-box;
+    }
+
+    /* 작은 원은 현재 손가락이 가리키는 이동 방향을 보여줍니다. */
+    #joystickKnob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 194, 102, 0.9);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    /* ESC 키가 없는 휴대폰을 위한 종료 버튼입니다. */
+    #exitButton {
+      right: 16px;
+      top: 16px;
+      padding: 9px 15px;
+      border: 2px solid white;
+      border-radius: 9px;
+      background: rgba(30, 30, 30, 0.7);
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    /* 손가락 터치 기기나 작은 화면에서 활성화된 조작기를 보여줍니다. */
+    @media (pointer: coarse), (max-width: 700px) {
+      .mobile-control.game-active {
+        display: block;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      p {
+        font-size: 14px;
+      }
+
+      #joystick {
+        left: 12px;
+        bottom: 12px;
+        width: 96px;
+        height: 96px;
+      }
+
+      #joystickKnob {
+        width: 42px;
+        height: 42px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 게임 제목과 조작 방법입니다. -->
+<h1>🦀 가장 완벽한 게임 🌀</h1>
+<p>WASD 또는 방향키로 이동하세요. ESC를 누르면 게임을 종료합니다.</p>
+
+<!-- Canvas, 시작 버튼과 모바일 조작기를 같은 영역에 겹쳐 놓습니다. -->
+<div class="game-container">
+  <canvas id="gameCanvas" width="900" height="600"></canvas>
+  <button id="startButton" type="button">게임 시작</button>
+  <div id="joystick" class="mobile-control" role="application" aria-label="이동 조이스틱">
+    <div id="joystickKnob"></div>
+  </div>
+  <button id="exitButton" class="mobile-control" type="button">종료</button>
+</div>
+
+<script>
+// ============================================================
+// 1. Canvas와 플레이어 기본 설정
+// ============================================================
+
+// HTML 요소를 찾아 JavaScript에서 사용할 수 있도록 변수에 저장합니다.
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const startButton = document.getElementById("startButton");
+const joystick = document.getElementById("joystick");
+const joystickKnob = document.getElementById("joystickKnob");
+const exitButton = document.getElementById("exitButton");
+
+// 플레이어의 위치와 크기, 이동 속도, 체력을 하나의 객체로 관리합니다.
+const player = {
+  x: canvas.width / 2,  // Canvas 가로 방향의 가운데에서 시작
+  y: canvas.height / 2, // Canvas 세로 방향의 가운데에서 시작
+  radius: 22,           // 충돌 판정에 사용하는 플레이어 반지름
+  speed: 240,           // 1초 동안 이동하는 거리(px)
+  hp: 100               // 게임 시작 시 체력
+};
+
+// 적과 충돌했을 때의 피해량, 무적 시간, 밀려나는 거리를 설정합니다.
+const PLAYER_DAMAGE = 15;
+const DAMAGE_COOLDOWN = 800;
+const HIT_FLASH_DURATION = 200;
+const ENEMY_KNOCKBACK = 35;
+
+// 현재 눌려 있는 키를 이름별로 true 또는 false로 기록합니다.
+const keys = {};
+
+// 가상 조이스틱의 가로·세로 이동 방향과 현재 손가락 번호입니다.
+const mobileDirection = { x: 0, y: 0 };
+let activePointerId = null;
+
+// ============================================================
+// 2. 효과음
+// ============================================================
+
+// Web Audio API를 사용하면 별도의 음원 파일 없이 간단한 효과음을 만들 수 있습니다.
+let audioContext = null;
+
+// 브라우저는 사용자 입력 전의 자동 소리 재생을 막으므로 첫 키 입력 때 오디오를 켭니다.
+function enableAudio() {
+
+  if (!audioContext) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioContextClass) return;
+
+    audioContext = new AudioContextClass();
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+}
+
+// 시작·끝 주파수, 길이, 파형과 음량을 받아 짧은 전자음을 재생합니다.
+function playTone(frequency, duration, waveType, volume, endFrequency = frequency) {
+
+  if (!audioContext || audioContext.state !== "running") return;
+
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const now = audioContext.currentTime;
+
+  oscillator.type = waveType;
+  oscillator.frequency.setValueAtTime(frequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
+
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+
+  oscillator.start(now);
+  oscillator.stop(now + duration);
+}
+
+// 서로 다른 두 음을 빠르게 낮추어 집게발이 적을 때리는 느낌을 만듭니다.
+function playClawHitSound() {
+  playTone(1100, 0.09, "sawtooth", 0.035, 220);
+  playTone(700, 0.13, "triangle", 0.045, 120);
+}
+
+// ============================================================
+// 3. 게임 상태와 난이도 설정
+// ============================================================
+
+// 배열에는 화면에 현재 존재하는 적과 파티클 객체가 들어갑니다.
+let enemies = [];
+let particles = [];
+let score = 0;                              // 적을 처치해서 얻은 점수
+let gameStarted = false;                   // 시작 버튼이나 키를 눌렀는지 여부
+let gameExited = false;                    // ESC로 게임을 종료했는지 여부
+let gameOver = false;                      // HP가 0이 되었는지 여부
+let lastDamageTime = -DAMAGE_COOLDOWN;     // 마지막으로 피해를 받은 시각(ms)
+
+// 두 집게발은 같은 각도를 사용하되 서로 반대편에서 함께 회전합니다.
+let clawAngle = 0;          // 현재 집게발이 바라보는 각도(라디안)
+const CLAW_DISTANCE = 65;   // 플레이어 중심에서 집게발 중심까지의 거리
+const CLAW_SPEED = 3.2;     // 집게발이 1초 동안 회전하는 각도
+const CLAW_ARM_WIDTH = 12;  // 집게발 팔 부분의 굵기
+
+// 100점마다 레벨이 오르며, 최고 레벨은 10입니다.
+const SCORE_PER_LEVEL = 100;             // 다음 레벨에 필요한 점수
+const MAX_LEVEL = 10;                    // 난이도가 올라가는 최대 레벨
+const ENEMY_SPEED_BONUS_PER_LEVEL = 16;  // 레벨마다 추가되는 적 속도(px/s)
+const INITIAL_SPAWN_INTERVAL = 1400;     // 1레벨 적 생성 간격(ms)
+const SPAWN_REDUCTION_PER_LEVEL = 110;   // 레벨마다 줄어드는 생성 간격(ms)
+const MIN_SPAWN_INTERVAL = 400;          // 아무리 어려워져도 유지할 최소 간격(ms)
+
+let enemySpawnTimer = 0; // 마지막 적 생성 후 흐른 시간(ms)
+let lastFrameTime = 0;   // 이전 프레임이 실행된 시각(ms)
+
+// ============================================================
+// 4. 게임 시작, 종료와 키보드 입력
+// ============================================================
+
+// 모바일 조이스틱과 종료 버튼을 화면에 표시하거나 숨깁니다.
+function setMobileControlsVisible(visible) {
+  joystick.classList.toggle("game-active", visible);
+  exitButton.classList.toggle("game-active", visible);
+}
+
+// 손가락을 뗐을 때 이동 방향과 조이스틱 손잡이를 가운데로 되돌립니다.
+function resetJoystick() {
+  mobileDirection.x = 0;
+  mobileDirection.y = 0;
+  activePointerId = null;
+  joystickKnob.style.left = "50%";
+  joystickKnob.style.top = "50%";
+}
+
+// 손가락 위치를 -1~1 사이의 이동 방향으로 바꿉니다.
+function updateJoystick(event) {
+  const rect = joystick.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const distanceX = event.clientX - centerX;
+  const distanceY = event.clientY - centerY;
+  const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+  const maxDistance = rect.width * 0.32;
+  const limit = distance > maxDistance ? maxDistance / distance : 1;
+  const limitedX = distanceX * limit;
+  const limitedY = distanceY * limit;
+
+  mobileDirection.x = limitedX / maxDistance;
+  mobileDirection.y = limitedY / maxDistance;
+
+  joystickKnob.style.left = 50 + (limitedX / rect.width) * 100 + "%";
+  joystickKnob.style.top = 50 + (limitedY / rect.height) * 100 + "%";
+}
+
+// 버튼이나 키보드로 새 게임을 시작합니다.
+function startGame() {
+  enableAudio();
+
+  if (gameExited || gameOver) {
+    restartGame();
+  }
+
+  gameStarted = true;
+  gameExited = false;
+  startButton.style.display = "none";
+  setMobileControlsVisible(true);
+}
+
+// ESC를 누르면 현재 플레이를 멈추고 시작 화면으로 돌아갑니다.
+function exitGame() {
+  gameStarted = false;
+  gameExited = true;
+  resetJoystick();
+  setMobileControlsVisible(false);
+
+  // 눌린 상태로 남은 이동키가 다음 게임에 영향을 주지 않게 초기화합니다.
+  for (const key in keys) {
+    keys[key] = false;
+  }
+
+  startButton.textContent = "다시 시작";
+  startButton.style.display = "block";
+}
+
+startButton.addEventListener("click", startGame);
+exitButton.addEventListener("click", exitGame);
+
+// 손가락이나 마우스로 조이스틱을 누르면 이동을 시작합니다.
+joystick.addEventListener("pointerdown", (event) => {
+  if (!gameStarted || gameOver) return;
+
+  activePointerId = event.pointerId;
+  joystick.setPointerCapture(event.pointerId);
+  updateJoystick(event);
+  event.preventDefault();
+});
+
+// 누른 상태로 움직이는 손가락의 위치를 계속 이동 방향으로 변환합니다.
+joystick.addEventListener("pointermove", (event) => {
+  if (event.pointerId !== activePointerId) return;
+
+  updateJoystick(event);
+  event.preventDefault();
+});
+
+// 손가락을 떼거나 브라우저가 터치를 취소하면 이동을 멈춥니다.
+joystick.addEventListener("pointerup", (event) => {
+  if (event.pointerId === activePointerId) resetJoystick();
+});
+
+joystick.addEventListener("pointercancel", (event) => {
+  if (event.pointerId === activePointerId) resetJoystick();
+});
+
+// 키를 눌렀을 때 시작, 종료, 이동 상태를 처리합니다.
+document.addEventListener("keydown", (event) => {
+
+  if (event.code === "Escape") {
+    if (gameStarted) exitGame();
+    return;
+  }
+
+  // 시작 화면에서는 ESC를 제외한 아무 키나 눌러도 게임이 시작됩니다.
+  if (!gameStarted) {
+    startGame();
+  } else {
+    // 브라우저가 오디오를 일시 정지한 경우 키 입력으로 다시 활성화합니다.
+    enableAudio();
+  }
+
+  // 대문자와 소문자를 구분하지 않도록 키 이름을 소문자로 저장합니다.
+  keys[event.key.toLowerCase()] = true;
+
+  // Game Over 화면에서는 Space 키로 모든 게임 상태를 초기화합니다.
+  if (event.code === "Space" && gameOver) {
+    startGame();
+  }
+});
+
+// 키를 떼면 해당 방향으로 더 이상 이동하지 않습니다.
+document.addEventListener("keyup", (event) => {
+  keys[event.key.toLowerCase()] = false;
+});
+
+// ============================================================
+// 5. 플레이어 이동과 난이도 계산
+// ============================================================
+
+// 눌린 키를 확인하여 이번 프레임에 이동할 방향을 계산합니다.
+function movePlayer(deltaTime) {
+
+  let dx = 0; // 가로 이동 방향: 왼쪽 -1, 오른쪽 1
+  let dy = 0; // 세로 이동 방향: 위 -1, 아래 1
+
+  if (keys["arrowleft"] || keys["a"]) dx -= 1;
+  if (keys["arrowright"] || keys["d"]) dx += 1;
+  if (keys["arrowup"] || keys["w"]) dy -= 1;
+  if (keys["arrowdown"] || keys["s"]) dy += 1;
+
+  // 모바일에서는 조이스틱이 중심에서 멀어진 정도에 따라 0~1의 힘을 더합니다.
+  dx += mobileDirection.x;
+  dy += mobileDirection.y;
+
+  // 방향 벡터의 길이를 최대 1로 제한해 대각선에서도 더 빨라지지 않게 합니다.
+  const directionLength = Math.sqrt(dx * dx + dy * dy);
+
+  if (directionLength > 1) {
+    dx /= directionLength;
+    dy /= directionLength;
+  }
+
+  player.x += dx * player.speed * deltaTime;
+  player.y += dy * player.speed * deltaTime;
+
+  // Math.min과 Math.max로 플레이어가 화면 밖으로 나가지 않게 제한합니다.
+  player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+  player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+}
+
+// 현재 점수로 레벨을 계산합니다. 0~99점은 1레벨입니다.
+function getLevel() {
+  return Math.min(MAX_LEVEL, Math.floor(score / SCORE_PER_LEVEL) + 1);
+}
+
+// 레벨이 오를 때마다 다음 적이 나올 때까지의 간격을 줄입니다.
+function getEnemySpawnInterval() {
+  return Math.max(
+    MIN_SPAWN_INTERVAL,
+    INITIAL_SPAWN_INTERVAL - (getLevel() - 1) * SPAWN_REDUCTION_PER_LEVEL
+  );
+}
+
+// ============================================================
+// 6. 적 생성과 이동
+// ============================================================
+
+// Canvas의 네 방향 중 하나를 무작위로 골라 화면 바깥에 적을 만듭니다.
+function createEnemy() {
+
+  let x;
+  let y;
+
+  // 0: 위, 1: 오른쪽, 2: 아래, 3: 왼쪽
+  const side = Math.floor(Math.random() * 4);
+
+  if (side === 0) {
+    x = Math.random() * canvas.width;
+    y = -30;
+  }
+
+  if (side === 1) {
+    x = canvas.width + 30;
+    y = Math.random() * canvas.height;
+  }
+
+  if (side === 2) {
+    x = Math.random() * canvas.width;
+    y = canvas.height + 30;
+  }
+
+  if (side === 3) {
+    x = -30;
+    y = Math.random() * canvas.height;
+  }
+
+  // 완성된 적 객체를 enemies 배열에 추가합니다.
+  enemies.push({
+    x: x,
+    y: y,
+    radius: 17,
+    // 속도 단위는 초당 픽셀이며, 레벨이 높을수록 더 빨라집니다.
+    speed: 90 + Math.random() * 60 +
+      (getLevel() - 1) * ENEMY_SPEED_BONUS_PER_LEVEL
+  });
+}
+
+// 모든 적이 플레이어를 향하도록 방향을 구해 조금씩 이동시킵니다.
+function moveEnemies(deltaTime) {
+
+  for (const enemy of enemies) {
+
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+
+    // 피타고라스 정리로 적과 플레이어 사이의 거리를 구합니다.
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // 방향 벡터를 거리로 나누어 길이가 1인 단위 벡터로 만든 뒤 속도를 곱합니다.
+    enemy.x += (dx / distance) * enemy.speed * deltaTime;
+    enemy.y += (dy / distance) * enemy.speed * deltaTime;
+  }
+}
+
+// 회전 각도를 받아 집게발의 중심 위치를 구합니다.
+function getClawPosition(angle) {
+
+  const x = player.x + Math.cos(angle) * CLAW_DISTANCE;
+  const y = player.y + Math.sin(angle) * CLAW_DISTANCE;
+
+  return { x, y };
+}
+
+// ============================================================
+// 7. 회전하는 집게발 위치와 충돌 판정
+// ============================================================
+
+// 집게발을 이루는 팔과 갈라진 위·아래 집게의 선분들을 만듭니다.
+// 그림과 충돌 판정이 같은 선분을 사용하므로 보이는 모습대로 적을 공격합니다.
+function getClawSegments(angle) {
+
+  const claw = getClawPosition(angle);
+  const directionX = Math.cos(angle);
+  const directionY = Math.sin(angle);
+  const sideX = -directionY;
+  const sideY = directionX;
+
+  function getPoint(forward, side) {
+    return {
+      x: claw.x + directionX * forward + sideX * side,
+      y: claw.y + directionY * forward + sideY * side
+    };
+  }
+
+  // 첫 선분은 팔이고, 나머지 네 선분은 갈라진 집게의 위·아래 부분입니다.
+  // radius는 각 선분의 충돌 두께를 뜻합니다.
+  return [
+    { start: getPoint(-12, 0), end: getPoint(25, 0), radius: CLAW_ARM_WIDTH / 2 },
+    { start: getPoint(25, -5), end: getPoint(38, -16), radius: 4.5 },
+    { start: getPoint(38, -16), end: getPoint(50, -8), radius: 4.5 },
+    { start: getPoint(25, 5), end: getPoint(38, 16), radius: 4.5 },
+    { start: getPoint(38, 16), end: getPoint(50, 8), radius: 4.5 }
+  ];
+}
+
+// 원 모양의 적이 두 점을 잇는 선분에 닿았는지 확인합니다.
+// 집게발의 각 부분을 굵은 선분으로 생각하면 충돌을 쉽게 계산할 수 있습니다.
+function isCircleTouchingLine(enemy, x1, y1, x2, y2, lineRadius) {
+
+  const lineX = x2 - x1;
+  const lineY = y2 - y1;
+  const lineLengthSquared = lineX * lineX + lineY * lineY;
+
+  // 적의 중심에서 선분에 가장 가까운 위치를 0~1 사이 값으로 구합니다.
+  let position =
+    ((enemy.x - x1) * lineX + (enemy.y - y1) * lineY) /
+    lineLengthSquared;
+
+  // 계산 결과가 선분 양 끝을 벗어나지 않도록 0~1 범위로 제한합니다.
+  position = Math.max(0, Math.min(1, position));
+
+  // 위에서 구한 위치를 이용해 선분에서 적과 가장 가까운 점을 찾습니다.
+  const closestX = x1 + lineX * position;
+  const closestY = y1 + lineY * position;
+
+  const distanceX = enemy.x - closestX;
+  const distanceY = enemy.y - closestY;
+  const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+
+  // 가장 가까운 거리보다 두 도형의 반지름 합이 크면 서로 닿은 상태입니다.
+  return distance < enemy.radius + lineRadius;
+}
+
+// 적이 사라진 위치에서 여러 개의 작은 불꽃을 만듭니다.
+function createDeathParticles(enemy, currentTime) {
+
+  const colors = ["#ffdd72", "#ff7657", "#b63232"];
+
+  for (let i = 0; i < 12; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 80 + Math.random() * 120;
+
+    // 각 파티클은 서로 다른 방향, 크기, 색상과 수명을 가집니다.
+    particles.push({
+      x: enemy.x,
+      y: enemy.y,
+      velocityX: Math.cos(angle) * speed,
+      velocityY: Math.sin(angle) * speed,
+      radius: 2 + Math.random() * 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      startTime: currentTime,
+      duration: 400 + Math.random() * 300
+    });
+  }
+}
+
+function checkClawCollision(currentTime) {
+
+  let defeatedEnemy = false;
+
+  // 두 번째 집게발은 첫 번째 집게발에서 180도 떨어져 있습니다.
+  const clawSegments = [
+    ...getClawSegments(clawAngle),
+    ...getClawSegments(clawAngle + Math.PI)
+  ];
+
+  // filter는 집게발에 닿지 않은 적만 새 배열에 남깁니다.
+  enemies = enemies.filter(enemy => {
+
+    // some은 여러 선분 중 하나라도 적에게 닿으면 true를 반환합니다.
+    const touchesClaw = clawSegments.some(segment =>
+      isCircleTouchingLine(
+        enemy,
+        segment.start.x,
+        segment.start.y,
+        segment.end.x,
+        segment.end.y,
+        segment.radius
+      )
+    );
+
+    if (touchesClaw) {
+      score += 10;
+      createDeathParticles(enemy, currentTime);
+      defeatedEnemy = true;
+      return false;
+    }
+
+    return true;
+  });
+
+  // 한 프레임에 여러 적을 쓰러뜨려도 타격음은 한 번만 재생합니다.
+  if (defeatedEnemy) {
+    playClawHitSound();
+  }
+}
+
+// ============================================================
+// 8. 플레이어 피격과 게임 오버 판정
+// ============================================================
+
+// 적이 플레이어의 원형 충돌 범위에 들어왔는지 검사합니다.
+function checkPlayerCollision(currentTime) {
+
+  for (const enemy of enemies) {
+
+    const dx = enemy.x - player.x;
+    const dy = enemy.y - player.y;
+
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // 두 원 중심의 거리가 반지름의 합보다 작으면 서로 겹친 것입니다.
+    const isTouching = distance < enemy.radius + player.radius;
+    const canTakeDamage = currentTime - lastDamageTime >= DAMAGE_COOLDOWN;
+
+    if (isTouching && canTakeDamage) {
+
+      // 한 번 부딪힐 때 정해진 피해만 받고 잠시 무적 상태가 됩니다.
+      player.hp -= PLAYER_DAMAGE;
+      lastDamageTime = currentTime;
+      playTone(130, 0.14, "sawtooth", 0.07);
+
+      // 충돌한 적을 소라게의 반대 방향으로 밀어냅니다.
+      if (distance > 0) {
+        enemy.x += (dx / distance) * ENEMY_KNOCKBACK;
+        enemy.y += (dy / distance) * ENEMY_KNOCKBACK;
+      } else {
+        // 중심이 정확히 겹친 경우에도 0으로 나누지 않고 오른쪽으로 밀어냅니다.
+        enemy.x += ENEMY_KNOCKBACK;
+      }
+
+      // 여러 적이 동시에 닿아도 한 프레임에 피해는 한 번만 받습니다.
+      break;
+    }
+  }
+
+  // 체력이 0 이하가 되면 음수를 표시하지 않고 게임을 끝냅니다.
+  if (player.hp <= 0) {
+    player.hp = 0;
+    gameOver = true;
+    resetJoystick();
+    setMobileControlsVisible(false);
+    startButton.textContent = "다시 시작";
+    startButton.style.display = "block";
+    playTone(90, 0.6, "triangle", 0.1);
+  }
+}
+
+// ============================================================
+// 9. Canvas에 게임 요소 그리기
+// ============================================================
+
+// 50px 간격의 얇은 격자선을 그려 배경에 깊이감을 줍니다.
+function drawBackground() {
+
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+
+  // 세로 격자선입니다.
+  for (let x = 0; x < canvas.width; x += 50) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  // 가로 격자선입니다.
+  for (let y = 0; y < canvas.height; y += 50) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+// 원, 타원과 선을 조합해 플레이어인 소라게를 그립니다.
+function drawHermitCrab(currentTime) {
+
+  // 피해를 받은 직후에는 몸이 빨간색으로 잠깐 빛납니다.
+  const isHit = currentTime - lastDamageTime < HIT_FLASH_DURATION;
+  const bodyColor = isHit ? "#ff5555" : "#f28c45";
+
+  ctx.save();
+  ctx.lineCap = "round";
+
+  // 몸 뒤쪽의 다리입니다.
+  ctx.strokeStyle = "#b95732";
+  ctx.lineWidth = 4;
+
+  for (let offset = -8; offset <= 8; offset += 8) {
+    ctx.beginPath();
+    ctx.moveTo(player.x - 2, player.y + offset / 2 + 7);
+    ctx.lineTo(player.x - 18, player.y + offset + 17);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(player.x + 10, player.y + offset / 2 + 7);
+    ctx.lineTo(player.x + 27, player.y + offset + 16);
+    ctx.stroke();
+  }
+
+  // 등에 지고 있는 둥근 소라 껍데기입니다.
+  ctx.fillStyle = "#d59a48";
+  ctx.strokeStyle = "#7b4b2a";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(player.x - 8, player.y - 2, 23, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 껍데기 안쪽의 나선 무늬입니다.
+  ctx.beginPath();
+  ctx.arc(player.x - 8, player.y - 2, 13, 0.3, Math.PI * 1.9);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(player.x - 8, player.y - 2, 6, 0.3, Math.PI * 1.9);
+  ctx.stroke();
+
+  // 껍데기 밖으로 나온 소라게의 몸입니다.
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(player.x + 11, player.y + 5, 21, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 두 눈을 받치는 눈자루입니다.
+  ctx.strokeStyle = bodyColor;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(player.x + 9, player.y - 3);
+  ctx.lineTo(player.x + 7, player.y - 22);
+  ctx.moveTo(player.x + 22, player.y - 1);
+  ctx.lineTo(player.x + 24, player.y - 20);
+  ctx.stroke();
+
+  // 흰 눈과 검은 눈동자입니다.
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(player.x + 7, player.y - 23, 6, 0, Math.PI * 2);
+  ctx.arc(player.x + 24, player.y - 21, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(player.x + 9, player.y - 23, 2.5, 0, Math.PI * 2);
+  ctx.arc(player.x + 26, player.y - 21, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// 두 집게발이 지나온 방향에 반투명한 원호를 그립니다.
+function drawClawTrails() {
+
+  const trailRadius = CLAW_DISTANCE + 22;
+  const angles = [clawAngle, clawAngle + Math.PI];
+
+  ctx.save();
+  ctx.lineCap = "round";
+
+  for (const angle of angles) {
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, trailRadius, angle - 0.65, angle);
+    ctx.strokeStyle = "rgba(255, 184, 92, 0.2)";
+    ctx.lineWidth = 20;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, trailRadius, angle - 0.65, angle);
+    ctx.strokeStyle = "rgba(255, 235, 184, 0.55)";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// 한쪽 집게발을 충돌 판정과 동일한 선분으로 그립니다.
+function drawSingleClaw(angle) {
+
+  const segments = getClawSegments(angle);
+  const claw = getClawPosition(angle);
+  const directionX = Math.cos(angle);
+  const directionY = Math.sin(angle);
+
+  ctx.save();
+  ctx.lineCap = "round";
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    ctx.strokeStyle = i === 0 ? "#c85f35" : "#ff9a3c";
+    ctx.lineWidth = segment.radius * 2;
+    ctx.beginPath();
+    ctx.moveTo(segment.start.x, segment.start.y);
+    ctx.lineTo(segment.end.x, segment.end.y);
+    ctx.stroke();
+  }
+
+  // 팔과 두 집게 끝이 만나는 둥근 관절입니다.
+  ctx.fillStyle = "#e9793d";
+  ctx.beginPath();
+  ctx.arc(
+    claw.x + directionX * 22,
+    claw.y + directionY * 22,
+    11,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawClaws() {
+  // 두 번째 집게발에 PI(180도)를 더해 서로 반대쪽에 배치합니다.
+  drawSingleClaw(clawAngle);
+  drawSingleClaw(clawAngle + Math.PI);
+}
+
+// enemies 배열의 모든 적을 붉은 원과 눈으로 그립니다.
+function drawEnemies() {
+
+  for (const enemy of enemies) {
+
+    // 적의 몸입니다.
+    ctx.fillStyle = "#b63232";
+
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 흰자와 검은 눈동자를 차례대로 그립니다.
+    ctx.fillStyle = "white";
+
+    ctx.beginPath();
+    ctx.arc(enemy.x - 6, enemy.y - 4, 4, 0, Math.PI * 2);
+    ctx.arc(enemy.x + 6, enemy.y - 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "black";
+
+    ctx.beginPath();
+    ctx.arc(enemy.x - 6, enemy.y - 4, 2, 0, Math.PI * 2);
+    ctx.arc(enemy.x + 6, enemy.y - 4, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// 생성된 시각을 기준으로 파티클을 움직이고 서서히 사라지게 합니다.
+function drawParticles(currentTime) {
+
+  ctx.save();
+
+  particles = particles.filter(particle => {
+    const age = currentTime - particle.startTime;
+
+    if (age >= particle.duration) return false;
+
+    // 시간에 따라 위치를 바꾸고, 수명이 끝날수록 투명하게 만듭니다.
+    const seconds = age / 1000;
+    const lifeProgress = age / particle.duration;
+    const x = particle.x + particle.velocityX * seconds;
+    // y 위치에 작은 중력 값을 더해 불꽃이 아래로 떨어지게 합니다.
+    const y = particle.y + particle.velocityY * seconds + 80 * seconds * seconds;
+
+    ctx.globalAlpha = 1 - lifeProgress;
+    ctx.fillStyle = particle.color;
+    ctx.beginPath();
+    ctx.arc(x, y, particle.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    return true;
+  });
+
+  ctx.restore();
+}
+
+// 점수, 레벨과 HP 막대처럼 플레이에 필요한 정보를 표시합니다.
+function drawUI() {
+
+  ctx.fillStyle = "white";
+  ctx.font = "22px Arial";
+
+  ctx.fillText("Score: " + score, 20, 35);
+
+  // 현재 난이도를 알 수 있도록 레벨을 점수 옆에 표시합니다.
+  ctx.fillText("Level: " + getLevel(), 300, 35);
+
+  ctx.fillText("HP", 20, 70);
+
+  // HP 배경
+  ctx.fillStyle = "#444";
+  ctx.fillRect(60, 53, 200, 20);
+
+  // HP
+  ctx.fillStyle = "#36d35a";
+  ctx.fillRect(60, 53, 200 * (player.hp / 100), 20);
+
+  ctx.strokeStyle = "white";
+  ctx.strokeRect(60, 53, 200, 20);
+}
+
+// HP가 0이 되었을 때 반투명 검은 화면 위에 최종 점수를 표시합니다.
+function drawGameOver() {
+
+  ctx.fillStyle = "rgba(0,0,0,0.65)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+
+  ctx.font = "55px Arial";
+  ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.font = "28px Arial";
+  ctx.fillText(
+    "최종 점수: " + score,
+    canvas.width / 2,
+    canvas.height / 2 + 10
+  );
+
+  ctx.font = "20px Arial";
+  ctx.fillText(
+    "스페이스바 또는 버튼으로 다시 시작",
+    canvas.width / 2,
+    canvas.height / 2 + 60
+  );
+
+  ctx.textAlign = "left";
+}
+
+// ESC로 플레이를 끝냈을 때 종료 안내를 표시합니다.
+function drawExitScreen() {
+
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+  ctx.font = "50px Arial";
+  ctx.fillText("게임 종료", canvas.width / 2, canvas.height / 2 - 35);
+
+  ctx.font = "20px Arial";
+  ctx.fillText(
+    "버튼을 클릭하거나 키보드를 눌러 다시 시작",
+    canvas.width / 2,
+    canvas.height / 2 + 20
+  );
+
+  ctx.textAlign = "left";
+}
+
+// ============================================================
+// 10. 게임 상태 초기화, 업데이트와 반복 실행
+// ============================================================
+
+// 위치, 체력, 적, 점수와 타이머를 처음 상태로 되돌립니다.
+function restartGame() {
+
+  player.x = canvas.width / 2;
+  player.y = canvas.height / 2;
+
+  player.hp = 100;
+
+  enemies = [];
+
+  particles = [];
+
+  score = 0;
+
+  clawAngle = 0;
+
+  enemySpawnTimer = 0;
+
+  lastDamageTime = -DAMAGE_COOLDOWN;
+
+  gameOver = false;
+}
+
+function update(currentTime, deltaTime) {
+
+  // 시작 버튼을 누르기 전과 게임이 끝난 뒤에는 게임 상태를 진행하지 않습니다.
+  if (!gameStarted || gameOver) return;
+
+  // 1) 플레이어를 이동합니다.
+  movePlayer(deltaTime);
+
+  // 2) 집게발은 초당 3.2라디안씩 돌아 약 2초에 한 바퀴 회전합니다.
+  clawAngle += CLAW_SPEED * deltaTime;
+
+  // 3) 지난 시간을 적 생성 타이머에 밀리초 단위로 더합니다.
+  enemySpawnTimer += deltaTime * 1000;
+
+  // 점수로 결정된 현재 레벨에 따라 적 생성 속도가 빨라집니다.
+  const spawnInterval = getEnemySpawnInterval();
+
+  if (enemySpawnTimer >= spawnInterval) {
+    createEnemy();
+    enemySpawnTimer -= spawnInterval;
+  }
+
+  // 4) 적을 이동한 뒤 집게발과 플레이어의 충돌을 차례대로 검사합니다.
+  moveEnemies(deltaTime);
+
+  checkClawCollision(currentTime);
+
+  checkPlayerCollision(currentTime);
+}
+
+// 매 프레임의 최신 게임 상태를 정해진 순서대로 Canvas에 그립니다.
+function draw(currentTime) {
+
+  // 이전 프레임의 그림을 지우지 않으면 움직인 자리에 잔상이 계속 남습니다.
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 뒤에 있어야 하는 요소부터 순서대로 그립니다.
+  drawBackground();
+
+  drawEnemies();
+
+  drawParticles(currentTime);
+
+  drawClawTrails();
+
+  drawHermitCrab(currentTime);
+
+  drawClaws();
+
+  drawUI();
+
+  if (gameExited) {
+    drawExitScreen();
+  } else if (gameOver) {
+    drawGameOver();
+  }
+}
+
+// 브라우저가 화면을 새로 그릴 때마다 호출되는 게임의 중심 반복 함수입니다.
+function gameLoop(currentTime) {
+
+  // 프레임 사이의 시간을 이용해 모니터 주사율과 관계없이 같은 속도로 움직입니다.
+  const deltaTime = lastFrameTime === 0
+    ? 0
+    : Math.min((currentTime - lastFrameTime) / 1000, 0.05);
+
+  lastFrameTime = currentTime;
+
+  // 게임 값을 먼저 계산하고, 계산이 끝난 모습을 화면에 그립니다.
+  update(currentTime, deltaTime);
+
+  draw(currentTime);
+
+  // 다음 화면 갱신 시점에 gameLoop를 다시 실행하도록 예약합니다.
+  requestAnimationFrame(gameLoop);
+}
+
+// 첫 프레임을 예약하면서 게임 프로그램을 실행합니다.
+requestAnimationFrame(gameLoop);
+
+</script>
+
+</body>
+</html>
